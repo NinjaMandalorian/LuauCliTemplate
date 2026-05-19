@@ -1,0 +1,10 @@
+# Build directory
+build/
+
+# Secrets
+.env
+.env.*
+
+# IDE files
+.vscode/
+.idea/
