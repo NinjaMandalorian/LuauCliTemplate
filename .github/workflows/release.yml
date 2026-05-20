@@ -47,10 +47,10 @@ jobs:
       - name: Bundle files
         run: |
           darklua process src/Main.luau build/Main.bundle.luau
-      - name: Set artifact name
+      - name: Setup environment variables
         run: |
           echo "ARTIFACT_NAME=${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.target }}" >> $GITHUB_ENV
-          
+          echo "EXECUTABLE_NAME=${{ github.event.repository.name }}" >> $GITHUB_ENV
           if [[ "${{ matrix.target }}" == windows-* ]]; then
             echo "FILE_EXT=.exe" >> $GITHUB_ENV
           else
@@ -60,23 +60,23 @@ jobs:
         run: |
           TARGET=${{ matrix.target }}
           echo "Building for $TARGET..."
-          echo "Artifact name: $ARTIFACT_NAME"
-          
+
           # Lune currently has an issue where it doesn't properly handle file extensions in the output path, so we have to conditionally append a dot here
           # See issue https://github.com/lune-org/lune/issues/395
           if [[ -z "$FILE_EXT" ]]; then
-            lune build build/Main.bundle.luau -t $TARGET -o build/$ARTIFACT_NAME.
+            lune build build/Main.bundle.luau -t $TARGET -o build/$EXECUTABLE_NAME.
           else
-            lune build build/Main.bundle.luau -t $TARGET -o build/$ARTIFACT_NAME$FILE_EXT
+            lune build build/Main.bundle.luau -t $TARGET -o build/$EXECUTABLE_NAME$FILE_EXT
           fi
 
-          zip -j "build/$ARTIFACT_NAME.zip" build/$ARTIFACT_NAME$FILE_EXT
+          zip -j "build/$ARTIFACT_NAME.zip" build/$EXECUTABLE_NAME$FILE_EXT
       - name: Upload Release Asset
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TARGET=${{ matrix.target }}
           echo "Uploading asset for $TARGET..."
+          echo "Executable name: $EXECUTABLE_NAME$FILE_EXT"
           echo "Artifact name: $ARTIFACT_NAME"
 
           gh release upload ${{ github.ref_name }} "build/$ARTIFACT_NAME.zip"
