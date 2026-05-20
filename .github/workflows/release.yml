@@ -1,0 +1,82 @@
+name: Release
+
+on:
+    push:
+        tags:
+            - "v*"
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    permissions:
+        contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create ${{ github.ref_name }} --draft --verify-tag --title ${{ github.ref_name }}
+  build:
+    needs:
+      - "create-release"
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - windows-x86_64
+          - windows-aarch64
+          - linux-x86_64
+          - linux-aarch64
+          - macos-x86_64
+          - macos-aarch64
+    name: Build ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      - name: Install Rokit Tools
+        uses: CompeyDev/setup-rokit@v0.1.2
+        with:
+          version: "v1.2.0"
+      - name: Create build directory
+        run: mkdir -p build
+      - name: Bundle files
+        run: |
+          darklua process src/Main.luau build/Main.bundle.luau
+      - name: Set artifact name
+        run: |
+          echo "ARTIFACT_NAME=${{ github.event.repository.name }}-${{ github.ref_name }}-${{ matrix.target }}" >> $GITHUB_ENV
+          
+          if [[ "${{ matrix.target }}" == windows-* ]]; then
+            echo "FILE_EXT=.exe" >> $GITHUB_ENV
+          else
+            echo "FILE_EXT=" >> $GITHUB_ENV
+          fi
+      - name: Build binary
+        run: |
+          TARGET=${{ matrix.target }}
+          echo "Building for $TARGET..."
+          echo "Artifact name: $ARTIFACT_NAME"
+          
+          # Lune currently has an issue where it doesn't properly handle file extensions in the output path, so we have to conditionally append a dot here
+          # See issue https://github.com/lune-org/lune/issues/395
+          if [[ -z "$FILE_EXT" ]]; then
+            lune build build/Main.bundle.luau -t $TARGET -o build/$ARTIFACT_NAME.
+          else
+            lune build build/Main.bundle.luau -t $TARGET -o build/$ARTIFACT_NAME$FILE_EXT
+          fi
+
+          zip -j "build/$ARTIFACT_NAME.zip" build/$ARTIFACT_NAME$FILE_EXT
+      - name: Upload Release Asset
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TARGET=${{ matrix.target }}
+          echo "Uploading asset for $TARGET..."
+          echo "Artifact name: $ARTIFACT_NAME"
+
+          gh release upload ${{ github.ref_name }} "build/$ARTIFACT_NAME.zip"
