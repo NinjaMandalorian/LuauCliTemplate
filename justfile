@@ -1,4 +1,5 @@
 set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
+set dotenv-load := true
 
 @default: && rb
 
